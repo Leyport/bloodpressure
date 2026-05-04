@@ -35,13 +35,37 @@ export class App {
   renameDraft = signal('');
   dropdownOpen = signal(false);
 
+  filterYear = signal<number | null>(null);
+  filterMonth = signal<number | null>(null);
+
+  availableYears = computed(() =>
+    [...new Set(this.readings().map(r => r.date.getFullYear()))].sort((a, b) => a - b)
+  );
+
+  availableMonths = computed(() => {
+    const year = this.filterYear();
+    const source = year ? this.readings().filter(r => r.date.getFullYear() === year) : this.readings();
+    return [...new Set(source.map(r => r.date.getMonth() + 1))].sort((a, b) => a - b);
+  });
+
+  filteredReadings = computed(() => {
+    const year = this.filterYear();
+    const month = this.filterMonth();
+    if (!year && !month) return this.readings();
+    return this.readings().filter(r => {
+      if (year && r.date.getFullYear() !== year) return false;
+      if (month && r.date.getMonth() + 1 !== month) return false;
+      return true;
+    });
+  });
+
   sortColumn = signal<'date' | 'systolic' | 'diastolic' | 'pulse' | 'category'>('date');
   sortDir = signal<'asc' | 'desc'>('asc');
 
   sortedReadings = computed(() => {
     const col = this.sortColumn();
     const dir = this.sortDir();
-    return [...this.readings()].sort((a, b) => {
+    return [...this.filteredReadings()].sort((a, b) => {
       let av: number | string, bv: number | string;
       switch (col) {
         case 'date':     av = a.date.getTime(); bv = b.date.getTime(); break;
@@ -377,6 +401,27 @@ export class App {
     this.categoryChartInstance?.destroy(); this.categoryChartInstance = null;
   }
 
+  setFilterYear(value: number | null) {
+    this.filterYear.set(value);
+    // reset month if it no longer exists in the newly selected year
+    if (value && this.filterMonth() && !this.availableMonths().includes(this.filterMonth()!)) {
+      this.filterMonth.set(null);
+    }
+  }
+
+  setFilterMonth(value: number | null) {
+    this.filterMonth.set(value);
+  }
+
+  clearFilters() {
+    this.filterYear.set(null);
+    this.filterMonth.set(null);
+  }
+
+  monthName(m: number): string {
+    return new Date(2000, m - 1, 1).toLocaleString('default', { month: 'long' });
+  }
+
   sortBy(col: 'date' | 'systolic' | 'diastolic' | 'pulse' | 'category') {
     if (this.sortColumn() === col) {
       this.sortDir.update(d => d === 'asc' ? 'desc' : 'asc');
@@ -404,5 +449,7 @@ export class App {
     this.deleteConfirmId.set(null);
     this.renameId.set(null);
     this.dropdownOpen.set(false);
+    this.filterYear.set(null);
+    this.filterMonth.set(null);
   }
 }

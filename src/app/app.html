@@ -250,7 +250,30 @@
 
     <!-- All readings table -->
     <div class="table-card">
-      <h2>All Readings</h2>
+      <div class="table-header">
+        <h2>All Readings
+          @if (filteredReadings().length !== readings().length) {
+            <span class="filter-count">{{ filteredReadings().length }} of {{ readings().length }}</span>
+          }
+        </h2>
+        <div class="filter-bar">
+          <select [ngModel]="filterYear()" (ngModelChange)="setFilterYear($event || null)">
+            <option [ngValue]="null">All years</option>
+            @for (y of availableYears(); track y) {
+              <option [ngValue]="y">{{ y }}</option>
+            }
+          </select>
+          <select [ngModel]="filterMonth()" (ngModelChange)="setFilterMonth($event || null)">
+            <option [ngValue]="null">All months</option>
+            @for (m of availableMonths(); track m) {
+              <option [ngValue]="m">{{ monthName(m) }}</option>
+            }
+          </select>
+          @if (filterYear() || filterMonth()) {
+            <button class="btn-clear-filter" (click)="clearFilters()">&#10005; Clear</button>
+          }
+        </div>
+      </div>
       <table>
         <thead>
           <tr>
