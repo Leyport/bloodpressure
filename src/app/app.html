@@ -254,18 +254,28 @@
       <table>
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Systolic</th>
-            <th>Diastolic</th>
-            <th>Pulse</th>
-            <th>Category</th>
+            <th class="sortable" (click)="sortBy('date')">
+              Date <span class="sort-arrow">{{ sortColumn() === 'date' ? (sortDir() === 'asc' ? '▲' : '▼') : '⇅' }}</span>
+            </th>
+            <th class="sortable" (click)="sortBy('systolic')">
+              Systolic <span class="sort-arrow">{{ sortColumn() === 'systolic' ? (sortDir() === 'asc' ? '▲' : '▼') : '⇅' }}</span>
+            </th>
+            <th class="sortable" (click)="sortBy('diastolic')">
+              Diastolic <span class="sort-arrow">{{ sortColumn() === 'diastolic' ? (sortDir() === 'asc' ? '▲' : '▼') : '⇅' }}</span>
+            </th>
+            <th class="sortable" (click)="sortBy('pulse')">
+              Pulse <span class="sort-arrow">{{ sortColumn() === 'pulse' ? (sortDir() === 'asc' ? '▲' : '▼') : '⇅' }}</span>
+            </th>
+            <th class="sortable" (click)="sortBy('category')">
+              Category <span class="sort-arrow">{{ sortColumn() === 'category' ? (sortDir() === 'asc' ? '▲' : '▼') : '⇅' }}</span>
+            </th>
             @if (readings()[0]?.notes !== undefined) {
               <th>Notes</th>
             }
           </tr>
         </thead>
         <tbody>
-          @for (r of readings(); track r.date.getTime()) {
+          @for (r of sortedReadings(); track r.date.getTime() + r.systolic) {
             <tr [ngClass]="'row-' + getReadingCategory(r).toLowerCase().replace(' ', '-')">
               <td>{{ r.date | date:'dd MMM yyyy' }}</td>
               <td>{{ r.systolic }}</td>

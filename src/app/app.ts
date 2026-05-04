@@ -35,6 +35,27 @@ export class App {
   renameDraft = signal('');
   dropdownOpen = signal(false);
 
+  sortColumn = signal<'date' | 'systolic' | 'diastolic' | 'pulse' | 'category'>('date');
+  sortDir = signal<'asc' | 'desc'>('asc');
+
+  sortedReadings = computed(() => {
+    const col = this.sortColumn();
+    const dir = this.sortDir();
+    return [...this.readings()].sort((a, b) => {
+      let av: number | string, bv: number | string;
+      switch (col) {
+        case 'date':     av = a.date.getTime(); bv = b.date.getTime(); break;
+        case 'systolic': av = a.systolic;       bv = b.systolic;       break;
+        case 'diastolic':av = a.diastolic;      bv = b.diastolic;      break;
+        case 'pulse':    av = a.pulse ?? -1;    bv = b.pulse ?? -1;    break;
+        case 'category': av = getBpCategory(a.systolic, a.diastolic);
+                         bv = getBpCategory(b.systolic, b.diastolic);  break;
+      }
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      return dir === 'asc' ? cmp : -cmp;
+    });
+  });
+
   private trendCanvas = viewChild<ElementRef<HTMLCanvasElement>>('trendChart');
   private monthCanvas = viewChild<ElementRef<HTMLCanvasElement>>('monthChart');
   private categoryCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoryChart');
@@ -354,6 +375,15 @@ export class App {
     this.trendChartInstance?.destroy(); this.trendChartInstance = null;
     this.monthChartInstance?.destroy(); this.monthChartInstance = null;
     this.categoryChartInstance?.destroy(); this.categoryChartInstance = null;
+  }
+
+  sortBy(col: 'date' | 'systolic' | 'diastolic' | 'pulse' | 'category') {
+    if (this.sortColumn() === col) {
+      this.sortDir.update(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      this.sortColumn.set(col);
+      this.sortDir.set('asc');
+    }
   }
 
   getCategoryColor(cat: BpCategory): string {

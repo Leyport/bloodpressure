@@ -502,6 +502,23 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+
+    &.sortable {
+      cursor: pointer;
+      user-select: none;
+      &:hover { background: #f1f5f9; color: #334155; }
+    }
+  }
+
+  .sort-arrow {
+    display: inline-block;
+    margin-left: 0.3rem;
+    font-size: 0.7rem;
+    opacity: 0.5;
+    vertical-align: middle;
+
+    th.sortable:hover & { opacity: 0.8; }
   }
 
   td {
