@@ -1,0 +1,289 @@
+<!-- Upload / home screen -->
+@if (!readings().length) {
+  <div class="upload-page">
+    <div class="upload-header">
+      <div class="logo">&#10084;</div>
+      <h1>Blood Pressure Dashboard <span class="version-badge">v{{ version }}</span></h1>
+      <p class="subtitle">Analyse your blood pressure readings from a spreadsheet</p>
+    </div>
+
+    <!-- Saved files — always visible -->
+    <div class="saved-panel">
+      <h3>&#128190; Saved files</h3>
+      @if (savedDatasets().length) {
+        <ul class="saved-list">
+          @for (ds of savedDatasets(); track ds.id) {
+            <li class="saved-item">
+              @if (renameId() === ds.id) {
+                <div class="rename-row">
+                  <input
+                    class="rename-input"
+                    type="text"
+                    [ngModel]="renameDraft()"
+                    (ngModelChange)="renameDraft.set($event)"
+                    (keydown.enter)="confirmRename()"
+                    (keydown.escape)="cancelRename()"
+                    maxlength="60"
+                    autofocus
+                  >
+                  <div class="rename-actions">
+                    <button class="btn-save-sm" [disabled]="!renameDraft().trim()" (click)="confirmRename()">Save</button>
+                    <button class="btn-ghost-sm" (click)="cancelRename()">Cancel</button>
+                  </div>
+                </div>
+              } @else if (deleteConfirmId() === ds.id) {
+                <div class="delete-confirm">
+                  <span>Delete <strong>{{ ds.name }}</strong>?</span>
+                  <div class="delete-actions">
+                    <button class="btn-danger-sm" (click)="deleteDataset(ds.id)">Delete</button>
+                    <button class="btn-ghost-sm" (click)="cancelDelete()">Cancel</button>
+                  </div>
+                </div>
+              } @else {
+                <button class="saved-load-btn" (click)="loadDataset(ds.id)">
+                  <div class="saved-name">{{ ds.name }}</div>
+                  <div class="saved-meta">{{ ds.readingCount }} readings &middot; saved {{ ds.savedAt | date:'dd MMM yyyy' }}</div>
+                </button>
+                <button class="btn-icon" title="Rename" (click)="startRename(ds)">&#9998;</button>
+                <button class="btn-icon btn-icon-danger" title="Delete" (click)="confirmDelete(ds.id)">&#128465;</button>
+              }
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="saved-empty">
+          <div class="saved-empty-icon">&#128204;</div>
+          <p>No saved files yet. Upload a spreadsheet below and save it to see it here.</p>
+        </div>
+      }
+    </div>
+
+    <!-- Upload new file -->
+    <div class="upload-section">
+      <h3>&#128229; Upload a spreadsheet</h3>
+
+      <div
+        class="drop-zone"
+        [class.drag-over]="dragOver()"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave()"
+        (drop)="onDrop($event)"
+        (click)="fileInput.click()"
+      >
+        <input #fileInput type="file" accept=".xlsx,.xls,.csv,.ods" (change)="onFileSelected($event)" style="display:none">
+        <div class="drop-icon">&#128194;</div>
+        <div class="drop-text">
+          <strong>Drop your spreadsheet here</strong>
+          <span>or click to browse</span>
+        </div>
+        <div class="drop-formats">Supports .xlsx, .xls, .csv, .ods</div>
+      </div>
+
+      @if (loading()) {
+        <div class="loading-bar"><div class="loading-fill"></div></div>
+        <p class="loading-text">Parsing spreadsheet...</p>
+      }
+
+      @if (error()) {
+        <div class="error-banner">&#9888; {{ error() }}</div>
+      }
+
+      <div class="tips">
+        <p>Columns detected automatically — your sheet needs: <strong>Date</strong>, <strong>Systolic</strong>, <strong>Diastolic</strong>, and optionally <strong>Pulse</strong>.</p>
+      </div>
+    </div>
+
+  </div>
+}
+
+<!-- Dashboard -->
+@if (readings().length) {
+  <div class="dashboard">
+    <header class="dash-header">
+      <div>
+        <h1>&#10084; Blood Pressure Dashboard <span class="version-badge">v{{ version }}</span></h1>
+        @if (isSaved()) {
+          <p class="dash-subtitle">{{ activeDatasetName() }} &mdash; {{ readings().length }} readings</p>
+        } @else {
+          <p class="dash-subtitle">{{ readings().length }} readings &mdash; not yet saved</p>
+        }
+      </div>
+
+      <div class="header-actions">
+        <!-- Dataset switcher dropdown -->
+        @if (savedDatasets().length) {
+          <div class="dataset-switcher">
+            <button class="switcher-btn" (click)="toggleDropdown($event)">
+              <span class="switcher-label">
+                @if (isSaved()) { {{ activeDatasetName() }} } @else { Saved files }
+              </span>
+              <span class="switcher-chevron" [class.open]="dropdownOpen()">&#8964;</span>
+            </button>
+            @if (dropdownOpen()) {
+              <div class="switcher-dropdown" (click)="$event.stopPropagation()">
+                @for (ds of savedDatasets(); track ds.id) {
+                  <button
+                    class="switcher-item"
+                    [class.active]="ds.id === activeDatasetId()"
+                    (click)="selectDataset($event, ds.id)"
+                  >
+                    <span class="switcher-item-name">{{ ds.name }}</span>
+                    <span class="switcher-item-meta">{{ ds.readingCount }} readings &middot; {{ ds.savedAt | date:'dd MMM yyyy' }}</span>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Save form -->
+        @if (!isSaved()) {
+          <div class="save-form">
+            <input
+              class="save-input"
+              type="text"
+              placeholder="Name this file..."
+              [(ngModel)]="saveName"
+              (keydown.enter)="saveDataset()"
+              maxlength="60"
+            >
+            <button class="btn-save" [disabled]="!saveName().trim()" (click)="saveDataset()">
+              &#128190; Save
+            </button>
+          </div>
+        } @else if (saveSuccess()) {
+          <div class="save-success">&#10003; Saved as &ldquo;{{ activeDatasetName() }}&rdquo;</div>
+        }
+
+        <button class="btn-reset" (click)="reset()">&#8617; Home</button>
+      </div>
+    </header>
+
+    <!-- Summary cards -->
+    @if (stats(); as s) {
+      <div class="cards">
+        <div class="card" [style.border-color]="getCategoryColor(s.category)">
+          <div class="card-label">Average BP</div>
+          <div class="card-value">{{ s.avgSys | number:'1.0-0' }}/{{ s.avgDia | number:'1.0-0' }}</div>
+          <div class="card-sub">mmHg</div>
+          <div class="card-badge" [style.background]="getCategoryColor(s.category)">{{ s.category }}</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Systolic Range</div>
+          <div class="card-value">{{ s.minSys }}–{{ s.maxSys }}</div>
+          <div class="card-sub">mmHg</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Diastolic Range</div>
+          <div class="card-value">{{ s.minDia }}–{{ s.maxDia }}</div>
+          <div class="card-sub">mmHg</div>
+        </div>
+        @if (s.avgPulse) {
+          <div class="card">
+            <div class="card-label">Avg Pulse</div>
+            <div class="card-value">{{ s.avgPulse | number:'1.0-0' }}</div>
+            <div class="card-sub">bpm</div>
+          </div>
+        }
+        <div class="card">
+          <div class="card-label">Total Readings</div>
+          <div class="card-value">{{ s.count }}</div>
+          <div class="card-sub">recorded</div>
+        </div>
+      </div>
+    }
+
+    <!-- Charts row -->
+    <div class="charts-row">
+      <div class="chart-card chart-large">
+        <h2>Trend Over Time</h2>
+        <div class="chart-wrap">
+          <canvas #trendChart></canvas>
+        </div>
+      </div>
+      <div class="chart-card chart-small">
+        <h2>Category Breakdown</h2>
+        <div class="chart-wrap">
+          <canvas #categoryChart></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monthly averages -->
+    <div class="chart-card">
+      <h2>Monthly Averages</h2>
+      <div class="chart-wrap chart-month">
+        <canvas #monthChart></canvas>
+      </div>
+    </div>
+
+    <!-- Monthly table -->
+    <div class="table-card">
+      <h2>Monthly Summary</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th>Readings</th>
+            <th>Avg Systolic</th>
+            <th>Avg Diastolic</th>
+            <th>Avg Pulse</th>
+            <th>Category</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (m of monthlyStats(); track m.month) {
+            <tr>
+              <td>{{ m.label }}</td>
+              <td>{{ m.count }}</td>
+              <td>{{ m.avgSys | number:'1.0-1' }}</td>
+              <td>{{ m.avgDia | number:'1.0-1' }}</td>
+              <td>{{ m.avgPulse ? (m.avgPulse | number:'1.0-0') : '—' }}</td>
+              <td>
+                <span class="badge" [style.background]="getCategoryColor(m.category)">{{ m.category }}</span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- All readings table -->
+    <div class="table-card">
+      <h2>All Readings</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Systolic</th>
+            <th>Diastolic</th>
+            <th>Pulse</th>
+            <th>Category</th>
+            @if (readings()[0]?.notes !== undefined) {
+              <th>Notes</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of readings(); track r.date.getTime()) {
+            <tr [ngClass]="'row-' + getReadingCategory(r).toLowerCase().replace(' ', '-')">
+              <td>{{ r.date | date:'dd MMM yyyy' }}</td>
+              <td>{{ r.systolic }}</td>
+              <td>{{ r.diastolic }}</td>
+              <td>{{ r.pulse ?? '—' }}</td>
+              <td>
+                <span class="badge" [style.background]="getCategoryColor(getReadingCategory(r))">
+                  {{ getReadingCategory(r) }}
+                </span>
+              </td>
+              @if (r.notes !== undefined) {
+                <td class="notes-cell">{{ r.notes }}</td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+}
