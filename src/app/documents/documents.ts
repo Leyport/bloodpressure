@@ -420,12 +420,16 @@ export class DocumentsComponent implements OnDestroy {
   }
 
   private friendlyError(e: any): string {
+    console.error('[Documents] Firebase/Gemini error:', e);
     const msg: string = e?.message ?? String(e);
     if (e?.code === 'permission-denied' || /permission/i.test(msg)) {
       return 'Firebase denied access. Check that the Firestore rules are deployed and you are signed in.';
     }
+    if (/\[429\b|prepayment credits|RESOURCE_EXHAUSTED|quota/i.test(msg)) {
+      return `Gemini credit or quota has run out. Top up the project in AI Studio (https://ai.studio/projects), wait a few minutes, then try again. Details: ${msg}`;
+    }
     if (/api-not-enabled|firebasevertexai|firebaseml|AI Logic/i.test(msg)) {
-      return 'Gemini is not enabled for this Firebase project yet. Enable "AI Logic" in the Firebase console, then try again.';
+      return `Gemini request failed. Check that "AI Logic" is enabled in the Firebase console. Details: ${msg}`;
     }
     if (/auth\/(operation-not-allowed|configuration-not-found)/.test(msg)) {
       return 'Google sign-in is not enabled. Enable it in Firebase console → Authentication → Sign-in method.';
