@@ -1,0 +1,281 @@
+<div class="docs-page">
+  <header class="docs-header">
+    <div>
+      <h1>&#129302; Documents &amp; AI Review</h1>
+      <p class="docs-subtitle">Select appointments, documents and spreadsheets, then ask Gemini about them</p>
+    </div>
+    <div class="header-actions">
+      @if (user(); as u) {
+        <span class="user-chip" [title]="u.email ?? ''">
+          @if (u.photoURL) { <img [src]="u.photoURL" alt="" referrerpolicy="no-referrer"> }
+          {{ u.displayName ?? u.email }}
+        </span>
+        <button class="btn-ghost" (click)="signOut()">Sign out</button>
+      }
+      <button class="btn-ghost" (click)="close.emit()">&#8617; BP Dashboard</button>
+    </div>
+  </header>
+
+  <div class="docs-grid">
+    <!-- ── Library ─────────────────────────────────────────────────────────── -->
+    <section class="panel library">
+      <div class="panel-head">
+        <h2>&#128193; Library</h2>
+        <button class="btn-small" (click)="showApptForm.set(!showApptForm())">
+          {{ showApptForm() ? 'Cancel' : '+ Add appointment' }}
+        </button>
+      </div>
+
+      @if (showApptForm()) {
+        <form class="appt-form" (ngSubmit)="saveAppointment()">
+          <input name="title" [(ngModel)]="appt.title" placeholder="What is it? e.g. GP blood pressure review" required maxlength="100">
+          <div class="appt-row">
+            <label>Date <input name="date" type="date" [(ngModel)]="appt.date" required></label>
+            <label>Time <input name="time" type="time" [(ngModel)]="appt.time"></label>
+          </div>
+          <input name="withWhom" [(ngModel)]="appt.withWhom" placeholder="With (doctor / nurse / clinic)" maxlength="100">
+          <input name="location" [(ngModel)]="appt.location" placeholder="Location" maxlength="100">
+          <textarea name="notes" [(ngModel)]="appt.notes" rows="3" placeholder="Notes — reason, outcome, medication changes…"></textarea>
+          <button type="submit" class="btn-primary" [disabled]="!appt.title.trim() || !appt.date">Save appointment</button>
+        </form>
+      }
+
+      <div
+        class="drop-zone"
+        [class.drag-over]="dragOver()"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave()"
+        (drop)="onDrop($event)"
+        (click)="fileInput.click()"
+      >
+        <input #fileInput type="file" multiple [accept]="accepted" (change)="onFilesSelected($event)" hidden>
+        <strong>&#128229; Drop files here or click to upload</strong>
+        <span>Appointment letters, results, PDFs, photos, spreadsheets, calendar (.ics) files</span>
+        @if (uploadKindLabel(); as label) {
+          <span class="drop-into">Uploads go into <b>{{ label }}s</b></span>
+        }
+      </div>
+
+      @if (libraryError()) { <div class="error-banner">&#9888; {{ libraryError() }}</div> }
+
+      <div class="kind-tabs" role="tablist">
+        <button role="tab" [class.active]="kindFilter() === 'all'" (click)="kindFilter.set('all')">
+          All <span class="count">{{ kindCounts().all }}</span>
+        </button>
+        @for (k of kinds; track k) {
+          <button role="tab" [class.active]="kindFilter() === k" (click)="kindFilter.set(k)">
+            {{ kindIcons[k] }} {{ kindLabels[k] }}s <span class="count">{{ kindCounts()[k] }}</span>
+          </button>
+        }
+      </div>
+
+      <div class="select-bar">
+        <span>{{ selected().size }} selected</span>
+        <button class="link" (click)="selectAllVisible()" [disabled]="!visibleItems().length">Select all</button>
+        <button class="link" (click)="clearSelection()" [disabled]="!selected().size">Clear</button>
+      </div>
+
+      @if (visibleItems().length) {
+        <ul class="item-list">
+          @for (item of visibleItems(); track item.id) {
+            <li class="item" [class.selected]="selected().has(item.id)">
+              @if (deleteConfirmId() === item.id) {
+                <div class="delete-confirm">
+                  <span>Delete <strong>{{ item.name }}</strong>?</span>
+                  <span>
+                    <button class="btn-danger-sm" (click)="deleteItem(item.id)">Delete</button>
+                    <button class="btn-ghost-sm" (click)="deleteConfirmId.set(null)">Cancel</button>
+                  </span>
+                </div>
+              } @else {
+                <label class="item-main">
+                  <input type="checkbox" [checked]="selected().has(item.id)" (change)="toggleSelect(item.id)">
+                  <span class="item-icon">{{ kindIcons[item.kind] }}</span>
+                  <span class="item-text">
+                    <span class="item-name">{{ item.name }}</span>
+                    <span class="item-meta">
+                      @if (item.appointmentDate) { {{ item.appointmentDate | date:'EEE d MMM yyyy, HH:mm' }} &middot; }
+                      @if (item.virtual) { from BP Dashboard } @else { added {{ item.addedAt | date:'d MMM yyyy' }} }
+                      @if (item.size && item.blob) { &middot; {{ formatSize(item.size) }} }
+                    </span>
+                  </span>
+                </label>
+                @if (!item.virtual) {
+                  <select class="kind-select" [ngModel]="item.kind" (ngModelChange)="changeKind(item, $event)" title="Change category">
+                    @for (k of kinds; track k) { <option [value]="k">{{ kindLabels[k] }}</option> }
+                  </select>
+                }
+                <button class="btn-icon" title="Open" (click)="openItem(item)">&#128065;</button>
+                @if (!item.virtual) {
+                  <button class="btn-icon btn-icon-danger" title="Delete" (click)="deleteConfirmId.set(item.id)">&#128465;</button>
+                }
+              }
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="empty">Nothing here yet. Upload files or add an appointment above.</p>
+      }
+      <p class="hint">Files are kept privately in this browser. Gemini conversations are saved to your Firebase account.</p>
+    </section>
+
+    <!-- ── AI chat ─────────────────────────────────────────────────────────── -->
+    <section class="panel chat">
+      <div class="panel-head">
+        <h2>&#10024; Ask Gemini</h2>
+        @if (user()) {
+          <div class="chat-head-actions">
+            <button class="btn-small" (click)="showHistory.set(!showHistory())">
+              &#128340; History ({{ conversations().length }})
+            </button>
+            <button class="btn-small" (click)="newConversation()" [disabled]="!convo() || busy()">+ New</button>
+          </div>
+        }
+      </div>
+
+      @if (!authReady()) {
+        <p class="empty">Loading…</p>
+      } @else if (!user()) {
+        <div class="signin">
+          <p>Sign in with Google to ask Gemini about your documents and save the conversations to your account.</p>
+          <button class="btn-primary" (click)="signIn()">Sign in with Google</button>
+          @if (chatError()) { <div class="error-banner">&#9888; {{ chatError() }}</div> }
+        </div>
+      } @else {
+        @if (showHistory()) {
+          <div class="history">
+            @if (conversations().length) {
+              <ul>
+                @for (c of conversations(); track c.id) {
+                  <li [class.active]="c.id === convo()?.id">
+                    @if (historyDeleteId() === c.id) {
+                      <div class="delete-confirm">
+                        <span>Delete this conversation?</span>
+                        <span>
+                          <button class="btn-danger-sm" (click)="deleteConversation(c.id)">Delete</button>
+                          <button class="btn-ghost-sm" (click)="historyDeleteId.set(null)">Cancel</button>
+                        </span>
+                      </div>
+                    } @else {
+                      <button class="history-open" (click)="openConversation(c)">
+                        <span class="history-title">{{ c.title }}</span>
+                        <span class="history-meta">
+                          {{ c.updatedAt | date:'d MMM yyyy, HH:mm' }} &middot; {{ c.sources.length }} source{{ c.sources.length === 1 ? '' : 's' }}
+                          &middot; {{ c.messages.length / 2 | number:'1.0-0' }} question{{ c.messages.length === 2 ? '' : 's' }}
+                        </span>
+                      </button>
+                      <button class="btn-icon btn-icon-danger" title="Delete" (click)="historyDeleteId.set(c.id)">&#128465;</button>
+                    }
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="empty">No saved conversations yet.</p>
+            }
+          </div>
+        }
+
+        <!-- Sources for this conversation -->
+        <div class="sources">
+          @if (convo(); as c) {
+            <span class="sources-label">Discussing:</span>
+            @for (s of c.sources; track s.id) { <span class="chip">{{ kindIcons[s.kind] }} {{ s.name }}</span> }
+            @if (missingSources().length) {
+              <p class="warn">&#9888; {{ missingSources().length }} source(s) are no longer in this browser's library; follow-ups will rely on earlier answers for them.</p>
+            }
+          } @else if (selectedItems().length) {
+            <span class="sources-label">Will send:</span>
+            @for (s of selectedItems(); track s.id) {
+              <span class="chip">{{ kindIcons[s.kind] }} {{ s.name }}
+                <button class="chip-x" (click)="toggleSelect(s.id)" title="Remove">&times;</button>
+              </span>
+            }
+          } @else {
+            <span class="sources-label muted">Tick items in the library to choose what Gemini should review.</span>
+          }
+        </div>
+
+        <div class="messages">
+          @if (convo(); as c) {
+            @for (m of c.messages; track $index) {
+              <div class="msg" [class.user]="m.role === 'user'" [class.model]="m.role === 'model'">
+                @if (m.role === 'model') {
+                  <div class="msg-body markdown" [innerHTML]="renderMarkdown(m.text)"></div>
+                  @if (speech.supported) {
+                    <div class="msg-actions">
+                      @if (speech.speakingId() === msgId(c, $index)) {
+                        <button class="btn-speak active" (click)="speech.togglePause()">
+                          {{ speech.paused() ? '▶ Resume' : '⏸ Pause' }}
+                        </button>
+                        <button class="btn-speak" (click)="speech.stop()">&#9209; Stop</button>
+                      } @else {
+                        <button class="btn-speak" (click)="toggleSpeak(c, $index)">&#128266; Read aloud</button>
+                      }
+                    </div>
+                  }
+                } @else {
+                  <div class="msg-body">{{ m.text }}</div>
+                }
+              </div>
+            }
+          } @else {
+            <div class="quick-prompts">
+              @for (p of quickPrompts; track p) {
+                <button class="quick" (click)="usePrompt(p)">{{ p }}</button>
+              }
+            </div>
+          }
+          @if (busy()) {
+            <div class="msg model">
+              @if (streamingText()) {
+                <div class="msg-body markdown" [innerHTML]="renderMarkdown(streamingText())"></div>
+              } @else {
+                <div class="msg-body thinking">Gemini is reading your documents<span class="dots">…</span></div>
+              }
+            </div>
+          }
+          <div #messagesEnd></div>
+        </div>
+
+        @if (chatError()) { <div class="error-banner">&#9888; {{ chatError() }}</div> }
+
+        <div class="composer">
+          <textarea
+            rows="3"
+            [ngModel]="prompt()"
+            (ngModelChange)="prompt.set($event)"
+            (keydown)="onPromptKeydown($event)"
+            [placeholder]="convo() ? 'Ask a follow-up question…' : 'Ask Gemini about the selected items…'"
+            [disabled]="busy()"
+          ></textarea>
+          <button class="btn-primary" (click)="send()" [disabled]="busy() || !prompt().trim() || (!convo() && !selected().size)">
+            {{ busy() ? 'Thinking…' : (convo() ? 'Ask follow-up' : 'Ask Gemini') }}
+          </button>
+        </div>
+
+        @if (speech.supported) {
+          <details class="voice-settings">
+            <summary>&#128266; Read-aloud settings</summary>
+            <label class="toggle">
+              <input type="checkbox" [ngModel]="speech.autoRead()" (ngModelChange)="speech.setAutoRead($event)">
+              Read new responses aloud automatically
+            </label>
+            <label>Voice
+              <select [ngModel]="speech.voiceURI()" (ngModelChange)="speech.setVoice($event)">
+                <option [ngValue]="null">Browser default</option>
+                @for (v of speech.voices(); track v.voiceURI) {
+                  <option [ngValue]="v.voiceURI">{{ v.name }} ({{ v.lang }})</option>
+                }
+              </select>
+            </label>
+            <label>Speed {{ speech.rate() | number:'1.1-1' }}×
+              <input type="range" min="0.6" max="1.6" step="0.1" [ngModel]="speech.rate()" (ngModelChange)="speech.setRate(+$event)">
+            </label>
+          </details>
+        }
+
+        <p class="hint">Gemini can make mistakes and isn't a substitute for medical advice. Check anything important with your doctor.</p>
+      }
+    </section>
+  </div>
+</div>

@@ -6,12 +6,13 @@ import { FileStorageService } from './file-storage.service';
 import { BpReading, BpCategory, getBpCategory, BP_CATEGORY_COLORS, SavedDataset } from './bp.model';
 import { APP_VERSION } from './version';
 import { Chart, registerables } from 'chart.js';
+import { DocumentsComponent } from './documents/documents';
 
 Chart.register(...registerables);
 
 @Component({
   selector: 'app-root',
-  imports: [DecimalPipe, DatePipe, NgClass, FormsModule],
+  imports: [DecimalPipe, DatePipe, NgClass, FormsModule, DocumentsComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
@@ -20,6 +21,9 @@ export class App {
   private storage = inject(FileStorageService);
 
   readonly version = APP_VERSION;
+
+  /** Which page is shown: the BP dashboard/upload screen or Documents & AI. */
+  view = signal<'bp' | 'docs'>('bp');
 
   readings = signal<BpReading[]>([]);
   loading = signal(false);
@@ -160,7 +164,7 @@ export class App {
 
     effect(() => {
       const r = this.readings();
-      if (r.length) {
+      if (r.length && this.view() === 'bp') {
         Promise.resolve().then(() => {
           this.renderTrendChart(r);
           this.renderMonthChart();
@@ -168,6 +172,12 @@ export class App {
         });
       }
     });
+  }
+
+  openDocs() {
+    this.dropdownOpen.set(false);
+    this.destroyCharts();
+    this.view.set('docs');
   }
 
   // ── Save / load / delete ─────────────────────────────────────────────────────

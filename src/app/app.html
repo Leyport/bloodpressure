@@ -1,10 +1,19 @@
+@if (view() === 'docs') {
+  @defer (on immediate) {
+    <app-documents (close)="view.set('bp')" />
+  } @loading (minimum 200ms) {
+    <p class="defer-loading">Loading Documents &amp; AI…</p>
+  }
+}
+
 <!-- Upload / home screen -->
-@if (!readings().length) {
+@if (view() === 'bp' && !readings().length) {
   <div class="upload-page">
     <div class="upload-header">
       <div class="logo">&#10084;</div>
       <h1>Blood Pressure Dashboard <span class="version-badge">v{{ version }}</span></h1>
       <p class="subtitle">Analyse your blood pressure readings from a spreadsheet</p>
+      <button class="btn-docs" (click)="openDocs()">&#129302; Documents &amp; AI Review</button>
     </div>
 
     <!-- Saved files — always visible -->
@@ -97,7 +106,7 @@
 }
 
 <!-- Dashboard -->
-@if (readings().length) {
+@if (view() === 'bp' && readings().length) {
   <div class="dashboard">
     <header class="dash-header">
       <div>
@@ -155,6 +164,7 @@
           <div class="save-success">&#10003; Saved as &ldquo;{{ activeDatasetName() }}&rdquo;</div>
         }
 
+        <button class="btn-reset" (click)="openDocs()">&#129302; Documents &amp; AI</button>
         <button class="btn-reset" (click)="reset()">&#8617; Home</button>
       </div>
     </header>
