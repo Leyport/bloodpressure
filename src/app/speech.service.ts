@@ -18,6 +18,9 @@ export class SpeechService {
   paused = signal(false);
   voices = signal<SpeechSynthesisVoice[]>([]);
 
+  /** Held so Chrome doesn't garbage-collect queued utterances and drop their onend. */
+  private queue: SpeechSynthesisUtterance[] = [];
+
   voiceURI = signal<string | null>(null);
   rate = signal(1);
   autoRead = signal(true);
@@ -37,7 +40,7 @@ export class SpeechService {
     if (!chunks.length) return;
     const voice = this.voices().find(v => v.voiceURI === this.voiceURI()) ?? null;
     this.speakingId.set(id);
-    chunks.forEach((text, i) => {
+    this.queue = chunks.map((text, i) => {
       const u = new SpeechSynthesisUtterance(text);
       u.rate = this.rate();
       if (voice) { u.voice = voice; u.lang = voice.lang; }
@@ -45,8 +48,9 @@ export class SpeechService {
         u.onend = () => { if (this.speakingId() === id) this.reset(); };
       }
       u.onerror = () => { if (this.speakingId() === id) this.reset(); };
-      speechSynthesis.speak(u);
+      return u;
     });
+    this.queue.forEach(u => speechSynthesis.speak(u));
   }
 
   togglePause() {
@@ -66,6 +70,7 @@ export class SpeechService {
   setAutoRead(on: boolean) { this.autoRead.set(on); this.savePrefs(); }
 
   private reset() {
+    this.queue = [];
     this.speakingId.set(null);
     this.paused.set(false);
   }

@@ -391,6 +391,19 @@ export class DocumentsComponent implements OnDestroy {
     else this.speech.speak(id, c.messages[index].text);
   }
 
+  /** Reads a message again from the beginning, even if it's currently being read. */
+  readAgain(c: Conversation, index: number) {
+    this.speech.speak(this.msgId(c, index), c.messages[index].text);
+  }
+
+  /** Index of the most recent Gemini answer in the conversation, or -1. */
+  lastAnswerIndex(c: Conversation): number {
+    for (let i = c.messages.length - 1; i >= 0; i--) {
+      if (c.messages[i].role === 'model') return i;
+    }
+    return -1;
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   renderMarkdown(text: string): string {

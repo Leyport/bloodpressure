@@ -207,6 +207,7 @@
                         <button class="btn-speak active" (click)="speech.togglePause()">
                           {{ speech.paused() ? '▶ Resume' : '⏸ Pause' }}
                         </button>
+                        <button class="btn-speak" (click)="readAgain(c, $index)">&#8634; Start again</button>
                         <button class="btn-speak" (click)="speech.stop()">&#9209; Stop</button>
                       } @else {
                         <button class="btn-speak" (click)="toggleSpeak(c, $index)">&#128266; Read aloud</button>
@@ -238,6 +239,23 @@
         </div>
 
         @if (chatError()) { <div class="error-banner">&#9888; {{ chatError() }}</div> }
+
+        @if (speech.supported && !busy() && convo(); as c) {
+          @let last = lastAnswerIndex(c);
+          @if (last >= 0) {
+            <div class="replay-bar">
+              @if (speech.speakingId() === msgId(c, last)) {
+                <button class="btn-replay active" (click)="speech.togglePause()">
+                  {{ speech.paused() ? '▶ Resume' : '⏸ Pause' }}
+                </button>
+                <button class="btn-replay" (click)="readAgain(c, last)">&#8634; Start again</button>
+                <button class="btn-replay" (click)="speech.stop()">&#9209; Stop</button>
+              } @else {
+                <button class="btn-replay" (click)="readAgain(c, last)">&#128266; Read last answer again</button>
+              }
+            </div>
+          }
+        }
 
         <div class="composer">
           <textarea
